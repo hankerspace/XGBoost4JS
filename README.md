@@ -1,8 +1,61 @@
 # XGBoost4JS
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.8.
+An Angular-based implementation of XGBoost (Extreme Gradient Boosting) for JavaScript/TypeScript, with built-in support for time series forecasting and automatic timestamp feature extraction.
+
+## Features
+
+- **XGBoost Implementation**: Binary classification and regression support
+- **Time Series Analysis**: Built-in tools for time series forecasting
+- **Automatic Timestamp Features**: Automatically extracts 13 temporal features from timestamps including:
+  - Hour, day of week, day of month, month, quarter
+  - Day/night and weekend/weekday indicators
+  - Cyclical encodings (sin/cos) for continuous temporal patterns
+- **Custom Features**: Combine automatic timestamp features with your own custom features
+- **Hyperparameter Tuning**: Grid search for optimal parameters
+- **Interactive Visualization**: Built-in charts for data exploration and results
+
+## Quick Start with Timestamp Features
+
+```typescript
+import { XGBoost, TimestampTrainingData } from './xgboost';
+
+// Prepare training data
+const trainData: TimestampTrainingData = {
+  timestamps: [
+    new Date('2024-01-01T08:00:00Z'),
+    new Date('2024-01-01T20:00:00Z'),
+    // ... more timestamps
+  ],
+  customFeatures: [
+    [25.5, 60],  // Optional: temperature, humidity, etc.
+    [18.0, 65],
+    // ...
+  ],
+  y: [0, 1] // Target values
+};
+
+// Train model
+const model = new XGBoost({
+  task: 'binary',
+  numRounds: 100,
+  maxDepth: 4,
+  learningRate: 0.1
+});
+
+model.fitWithTimestamps(trainData);
+
+// Make predictions
+const prediction = model.predictWithTimestamp(
+  new Date('2024-01-02T21:00:00Z'),
+  [20.0, 70] // Optional custom features
+);
+```
+
+For detailed examples and usage, see [TIMESTAMP_FEATURES.md](TIMESTAMP_FEATURES.md).
 
 ## Development server
+
+This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.8.
 
 To start a local development server, run:
 
