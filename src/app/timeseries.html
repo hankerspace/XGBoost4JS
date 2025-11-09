@@ -1,0 +1,194 @@
+<div class="xgb-container">
+  <h1 class="xgb-title">{{ title() }}</h1>
+  <p class="xgb-sub">Découpage en 2 étapes: (1) Génération et visualisation de la série (2) Entraînement + Prévision.</p>
+
+  <!-- A. Génération de la série -->
+  <section class="xgb-controls">
+    <h3 style="margin:0 0 .5rem;">1) Génération de la série</h3>
+    <div class="xgb-grid">
+      <label title="Forme de la série temporelle (sinus, cosinus, etc.). Les options influencent la dynamique des données.">Type de série
+        <select [(ngModel)]="seriesType" (change)="generateSeries()">
+          <option value="sine">sinus</option>
+          <option value="cosine">cosinus</option>
+          <option value="square">carré</option>
+          <option value="sawtooth">dents de scie</option>
+          <option value="trend">tendance linéaire</option>
+          <option value="trend_sine">tendance + sinus</option>
+          <option value="randomwalk">marche aléatoire</option>
+        </select>
+        <small class="hint">Choisissez la forme globale de la série (certaines options, ex. Pente/Dérive, n’agissent que sur certains types).</small>
+      </label>
+      <label title="Amplitude de l’onde (ou taille moyenne des pas en marche aléatoire). Plus grand = variations plus fortes.">Amplitude
+        <input type="number" step="0.1" [(ngModel)]="amplitude" (change)="generateSeries()" />
+        <small class="hint">Echelle verticale de l’oscillation (ou taille de pas en random walk).</small>
+      </label>
+      <label title="Nombre de cycles complets sur toute la longueur totale. N’affecte pas les types trend/randomwalk.">Fréquence (cycles)
+        <input type="number" min="1" step="1" [(ngModel)]="frequency" (change)="generateSeries()" />
+        <small class="hint">Nombre de périodes sur l’intervalle total (ignoré pour trend/random walk).</small>
+      </label>
+      <label title="Décalage initial de l’onde en radians (pour sin/cos/carré/scie).">
+        Phase (rad)
+        <input type="number" step="0.1" [(ngModel)]="phase" (change)="generateSeries()" />
+        <small class="hint">Décalage horizontal de la courbe périodique.</small>
+      </label>
+      <label title="Niveau de bruit uniforme ajouté à chaque point (borne ±).">
+        Bruit (±)
+        <input type="number" step="0.01" [(ngModel)]="noise" (change)="generateSeries()" />
+        <small class="hint">Amplitude du bruit aléatoire ajouté à chaque observation.</small>
+      </label>
+      <label title="Pente de la tendance linéaire sur l’ensemble de la série. Utilisée par trend et trend+sine.">
+        Pente (trend)
+        <input type="number" step="0.01" [(ngModel)]="trendSlope" (change)="generateSeries()" />
+        <small class="hint">Variation linéaire ajoutée (utilisée pour trend et trend+sine).</small>
+      </label>
+      <label title="Dérive ajoutée à chaque pas de la marche aléatoire (biais directionnel).">
+        Dérive (random walk)
+        <input type="number" step="0.01" [(ngModel)]="drift" (change)="generateSeries()" />
+        <small class="hint">Biais ajouté à chaque pas (uniquement en marche aléatoire).</small>
+      </label>
+      <label title="Nombre total de points générés pour la série (train + test).">
+        Longueur totale
+        <input type="number" min="100" step="50" [(ngModel)]="totalLen" (change)="generateSeries()" />
+        <small class="hint">Taille totale de la série (inclut apprentissage et test).</small>
+      </label>
+      <label title="Nombre de points utilisés pour l’entraînement. Le reste sert à l’évaluation/prévision.">
+        Longueur train
+        <input type="number" min="50" step="50" [(ngModel)]="trainLen" (change)="generateSeries()" />
+        <small class="hint">Partie initiale utilisée pour entraîner le modèle.</small>
+      </label>
+      <label title="Taille de la fenêtre glissante: nombre de valeurs passées utilisées pour prédire la suivante.">
+        Lag (fenêtre)
+        <input type="number" min="2" step="1" [(ngModel)]="lag" (change)="generateSeries()" />
+        <small class="hint">Nombre de pas historiques servant de features pour prédire le suivant.</small>
+      </label>
+    </div>
+    <div class="xgb-card" style="height: 300px; margin-top:.75rem;">
+      <h3 style="margin:0 0 .5rem;">Série brute (train/test)</h3>
+      <canvas #rawChart></canvas>
+      <small>En bleu: portion d'apprentissage [0..{{trainLen-1}}], en bleu clair: portion de test [{{trainLen}}..{{totalLen-1}}].</small>
+    </div>
+    <div class="xgb-buttons">
+      <button (click)="generateSeries()" [disabled]="isLoading" title="Régénère la série avec les paramètres ci-dessus">Générer</button>
+    </div>
+  </section>
+
+  <!-- B. Entraînement + Prévision -->
+  <section class="xgb-controls" style="margin-top:1rem;">
+    <h3 style="margin:0 0 .5rem;">2) Entraînement + Prévision</h3>
+    <!-- Loading overlay -->
+    <div class="loading-overlay" *ngIf="isLoading">
+      <div class="spinner" aria-hidden="true"></div>
+      <div role="status">Entraînement en cours…</div>
+    </div>
+    <div class="xgb-grid">
+      <label title="Facteur de shrinkage appliqué à chaque arbre. Plus petit = apprentissage plus lent et plus stable.">Learning rate
+        <input type="number" min="0.01" max="1" step="0.01" [(ngModel)]="params.learningRate" />
+        <small class="hint">Coefficient appliqué à chaque arbre (contrôle la vitesse d’apprentissage).</small>
+      </label>
+      <label title="Profondeur maximale des arbres. Plus grand = modèle plus complexe (risque de surapprentissage).">Max depth
+        <input type="number" min="1" max="8" step="1" [(ngModel)]="params.maxDepth" />
+        <small class="hint">Profondeur des arbres (complexité du modèle).</small>
+      </label>
+      <label title="Seuil minimal pour scinder un nœud (≈ somme des hessiennes). En régression (hess=1), cela s’apparente à un minimum d’échantillons.">Min child weight
+        <input type="number" min="1" max="10" step="1" [(ngModel)]="params.minChildWeight" />
+        <small class="hint">Seuil de masse (ou effectif) minimal pour créer une division.</small>
+      </label>
+      <label title="Nombre d’itérations (arbres) de boosting. Plus élevé peut améliorer la précision avec un learning rate faible.">Rounds
+        <input type="number" min="10" step="10" [(ngModel)]="params.numRounds" />
+        <small class="hint">Nombre d’arbres (itérations) construits.</small>
+      </label>
+    </div>
+    <div class="xgb-buttons">
+      <button class="primary" (click)="trainAndForecast()" [disabled]="isLoading" title="Lance l’entraînement XGBoost puis la prévision de la suite">Entraîner + Prévoir</button>
+      <button (click)="reset()" [disabled]="isLoading" title="Réinitialise la page et les sorties">Réinitialiser</button>
+    </div>
+    <div class="xgb-viz" style="margin-top:.75rem;">
+      <div class="xgb-card" style="height: 320px;">
+        <h3>Prédiction vs vérité terrain</h3>
+        <canvas #predChart></canvas>
+        <small>La prévision commence à t = {{trainLen}} sur {{totalLen}} points.</small>
+      </div>
+      <div class="xgb-card">
+        <h3>Métriques régression</h3>
+        <ul class="xgb-metrics">
+          <li>MAE: {{mae | number:'1.4-4'}}</li>
+          <li>RMSE: {{rmse | number:'1.4-4'}}</li>
+          <li>MSE: {{mse | number:'1.4-4'}}</li>
+          <li>R²: {{r2 | number:'1.4-4'}}</li>
+          <li>MAPE: {{mape | number:'1.2-2'}} %</li>
+          <li>Biais (moy. erreur): {{bias | number:'1.4-4'}}</li>
+          <li>Erreur absolue max: {{maxAe | number:'1.4-4'}}</li>
+          <li>Prédictions évaluées: {{nPreds}}</li>
+          <li>Fenêtre (lag): {{lag}} | Train/Test: {{trainLen}} / {{totalLen - trainLen}}</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- C. Recherche d'hyperparamètres -->
+  <section class="xgb-controls" style="margin-top:1rem;">
+    <h3 style="margin:0 0 .5rem;">3) Recherche d’hyperparamètres</h3>
+    <div class="loading-overlay" *ngIf="isTuning">
+      <div class="spinner" aria-hidden="true"></div>
+      <div role="status">Recherche en cours…</div>
+      <div class="tune-progress">Simulations: {{tuneDone}} / {{tuneTotal}} ({{ (tuneTotal ? (100 * tuneDone / tuneTotal) : 0) | number:'1.0-0' }}%)</div>
+      <div class="progress"><div class="bar" [style.width.%]="tuneTotal ? (100 * tuneDone / tuneTotal) : 0"></div></div>
+    </div>
+    <div class="xgb-grid">
+      <label title="Liste de valeurs candidates séparées par des virgules (ex: 0.05,0.1,0.2)">LR candidats
+        <input type="text" [(ngModel)]="tuneLr" />
+        <small class="hint">Ex.: 0.03, 0.05, 0.1, 0.2</small>
+      </label>
+      <label title="Profondeurs maximales candidates séparées par des virgules">Max depth candidats
+        <input type="text" [(ngModel)]="tuneDepth" />
+        <small class="hint">Ex.: 3, 4, 5</small>
+      </label>
+      <label title="Min child weight candidats séparés par des virgules">Min child weight candidats
+        <input type="text" [(ngModel)]="tuneMinChildWeight" />
+        <small class="hint">Ex.: 1, 2, 5</small>
+      </label>
+      <label title="Nombre de rounds candidats séparés par des virgules">Rounds candidats
+        <input type="text" [(ngModel)]="tuneRounds" />
+        <small class="hint">Ex.: 100, 200</small>
+      </label>
+    </div>
+    <div class="xgb-buttons">
+      <button class="primary" (click)="tuneHyperparams()" [disabled]="isTuning" title="Lance une recherche grille simple (validation interne)">Lancer la recherche</button>
+      <button (click)="applyBestParams()" [disabled]="isTuning || !tuneResults.length" title="Applique les meilleurs hyperparamètres trouvés">Appliquer le meilleur</button>
+    </div>
+    <div class="xgb-card" *ngIf="tuneResults?.length" style="margin-top:.75rem;">
+      <h3>Top résultats (validation interne)</h3>
+      <table class="xgb-table compact">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>LR</th>
+            <th>Depth</th>
+            <th>MinCW</th>
+            <th>Rounds</th>
+            <th>Biais</th>
+            <th>RMSE</th>
+            <th>MAE (erreur abs. moy)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of tuneResults; track $index) {
+            <tr>
+              <td>{{$index+1}}</td>
+              <td>{{row.params.learningRate}}</td>
+              <td>{{row.params.maxDepth}}</td>
+              <td>{{row.params.minChildWeight}}</td>
+              <td>{{row.params.numRounds}}</td>
+              <td>{{row.bias | number:'1.4-4'}}</td>
+              <td>{{row.rmse | number:'1.4-4'}}</td>
+              <td>{{row.mae | number:'1.4-4'}}</td>
+              <td><button (click)="applyParamsFrom(row)" title="Copier ces hyperparamètres vers la section 2">Utiliser</button></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <small>Tri: |biais| minimal (meilleur), puis RMSE et MAE — Validation: 30% fin de la fenêtre d’entraînement.</small>
+    </div>
+  </section>
+</div>
