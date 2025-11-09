@@ -58,8 +58,23 @@
       </label>
       <label title="Taille de la fenêtre glissante: nombre de valeurs passées utilisées pour prédire la suivante.">
         Lag (fenêtre)
-        <input type="number" min="2" step="1" [(ngModel)]="lag" (change)="generateSeries()" />
-        <small class="hint">Nombre de pas historiques servant de features pour prédire le suivant.</small>
+        <input type="number" min="2" step="1" [(ngModel)]="lag" (change)="generateSeries()" [disabled]="useTimestamps" />
+        <small class="hint">Nombre de pas historiques servant de features pour prédire le suivant (désactivé en mode timestamp).</small>
+      </label>
+      <label title="Activer l'utilisation de timestamps et features temporelles automatiques (heure, jour, mois, etc.).">
+        <input type="checkbox" [(ngModel)]="useTimestamps" (change)="generateSeries()" />
+        Utiliser timestamps
+        <small class="hint">Utilise les features temporelles automatiques (heure, jour de la semaine, mois, etc.) au lieu de la fenêtre glissante.</small>
+      </label>
+      <label title="Générer des features personnalisées additionnelles (température simulée, activité).">
+        <input type="checkbox" [(ngModel)]="generateCustomFeatures" (change)="generateSeries()" [disabled]="!useTimestamps" />
+        Générer features custom
+        <small class="hint">Génère des features supplémentaires (température, activité) en plus des features temporelles.</small>
+      </label>
+      <label title="Intervalle de temps entre chaque point de données (en heures)." *ngIf="useTimestamps">
+        Intervalle (heures)
+        <input type="number" min="0.25" step="0.25" [(ngModel)]="intervalHours" (change)="generateSeries()" />
+        <small class="hint">Temps entre chaque observation (ex: 1 = données horaires, 24 = données journalières).</small>
       </label>
     </div>
     <div class="xgb-card" style="height: 300px; margin-top:.75rem;">
@@ -119,7 +134,10 @@
           <li>Biais (moy. erreur): {{bias | number:'1.4-4'}}</li>
           <li>Erreur absolue max: {{maxAe | number:'1.4-4'}}</li>
           <li>Prédictions évaluées: {{nPreds}}</li>
-          <li>Fenêtre (lag): {{lag}} | Train/Test: {{trainLen}} / {{totalLen - trainLen}}</li>
+          <li *ngIf="!useTimestamps">Fenêtre (lag): {{lag}} | Train/Test: {{trainLen}} / {{totalLen - trainLen}}</li>
+          <li *ngIf="useTimestamps">Mode: Timestamps (13 features temporelles{{generateCustomFeatures ? ' + 2 features custom' : ''}})</li>
+          <li *ngIf="!useTimestamps">Mode: Fenêtre glissante ({{lag}} features)</li>
+          <li *ngIf="useTimestamps">Train/Test: {{trainLen}} / {{totalLen - trainLen}}</li>
         </ul>
       </div>
     </div>

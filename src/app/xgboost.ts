@@ -226,6 +226,41 @@ export class XGBoost {
     return X.map((x) => this.predictSingle(x));
   }
 
+  /**
+   * Fits the model using timestamp-based training data
+   * @param data - Training data with timestamps, optional custom features, and target values
+   */
+  fitWithTimestamps(data: TimestampTrainingData): void {
+    const X = prepareTimestampFeatures(data);
+    this.fit(X, data.y);
+  }
+
+  /**
+   * Predicts using a timestamp and optional custom features
+   * @param timestamp - Unix timestamp in milliseconds, Date object, or ISO string
+   * @param customFeatures - Optional array of custom feature values
+   * @returns Predicted value
+   */
+  predictWithTimestamp(timestamp: number | Date | string, customFeatures?: number[]): number {
+    const timeFeatures = extractTimestampFeatures(timestamp);
+    const timeArray = timestampFeaturesToArray(timeFeatures);
+    const x = customFeatures ? [...timeArray, ...customFeatures] : timeArray;
+    return this.predictSingle(x);
+  }
+
+  /**
+   * Predicts for multiple timestamps with optional custom features
+   * @param timestamps - Array of timestamps
+   * @param customFeatures - Optional array of custom feature arrays (one per timestamp)
+   * @returns Array of predicted values
+   */
+  predictBatchWithTimestamps(timestamps: (number | Date | string)[], customFeatures?: number[][]): number[] {
+    return timestamps.map((ts, i) => {
+      const cf = customFeatures && customFeatures[i] ? customFeatures[i] : undefined;
+      return this.predictWithTimestamp(ts, cf);
+    });
+  }
+
   private _predictRaw(x: number[], node: Node): number {
     if (node.isLeaf) return node.value ?? 0;
     if ((node.featureIndex ?? 0) >= x.length || node.threshold == null) return 0; // safety
@@ -431,6 +466,65 @@ export function generateTimeSeries(
   return data;
 }
 
+/**
+ * Generate time series with timestamps and optional custom features
+ * @param type - Type of time series pattern
+ * @param total - Number of data points
+ * @param startDate - Starting timestamp for the series
+ * @param intervalMs - Time interval between points in milliseconds (default: 1 hour)
+ * @param options - Series generation options
+ * @returns Object with timestamps, values, and optional custom features
+ */
+export function generateTimeSeriesWithTimestamps(
+  type: SeriesType,
+  total: number,
+  startDate: Date,
+  intervalMs: number = 3600000, // 1 hour by default
+  options?: {
+    amplitude?: number;
+    frequency?: number;
+    phase?: number;
+    noise?: number;
+    trendSlope?: number;
+    drift?: number;
+    generateCustomFeatures?: boolean; // Generate additional features based on the pattern
+  }
+): { timestamps: Date[]; values: number[]; customFeatures?: number[][] } {
+  const values = generateTimeSeries(type, total, options);
+  const timestamps: Date[] = [];
+  const customFeatures: number[][] = [];
+  
+  for (let i = 0; i < total; i++) {
+    const timestamp = new Date(startDate.getTime() + i * intervalMs);
+    timestamps.push(timestamp);
+    
+    // Optionally generate custom features that could influence the series
+    if (options?.generateCustomFeatures) {
+      // Example custom features: 
+      // - Temperature-like pattern (follows season)
+      // - Activity level (follows time of day)
+      const month = timestamp.getMonth() + 1;
+      const hour = timestamp.getHours();
+      
+      // Temperature: higher in summer (June-August), lower in winter
+      const tempBase = 15 + 10 * Math.sin(2 * Math.PI * (month - 3) / 12);
+      const tempNoise = (Math.random() - 0.5) * 5;
+      const temperature = tempBase + tempNoise;
+      
+      // Activity: higher during day (8-20), lower at night
+      const activityBase = hour >= 8 && hour < 20 ? 0.7 : 0.2;
+      const activityNoise = Math.random() * 0.2;
+      const activity = activityBase + activityNoise;
+      
+      customFeatures.push([temperature, activity]);
+    }
+  }
+  
+  return options?.generateCustomFeatures 
+    ? { timestamps, values, customFeatures }
+    : { timestamps, values };
+}
+
 export function windowedSupervised(series: number[], lag: number): { X: number[][]; y: number[] } {
   const X: number[][] = [];
   const y: number[] = [];
@@ -451,6 +545,129 @@ export function recursiveForecast(model: XGBoost, seed: number[], steps: number)
     buf.push(next);
   }
   return preds;
+}
+
+// ===== Timestamp Features =====
+
+/**
+ * Temporal features extracted from a timestamp
+ */
+export interface TimestampFeatures {
+  hour: number;           // 0-23
+  dayOfWeek: number;      // 0 (Sunday) - 6 (Saturday)
+  dayOfMonth: number;     // 1-31
+  month: number;          // 1-12
+  quarter: number;        // 1-4
+  isNight: number;        // 1 if night (18-6), 0 if day
+  isWeekend: number;      // 1 if Saturday or Sunday, 0 otherwise
+  hourSin: number;        // Cyclical encoding: sin(2π * hour/24)
+  hourCos: number;        // Cyclical encoding: cos(2π * hour/24)
+  dayOfWeekSin: number;   // Cyclical encoding: sin(2π * dayOfWeek/7)
+  dayOfWeekCos: number;   // Cyclical encoding: cos(2π * dayOfWeek/7)
+  monthSin: number;       // Cyclical encoding: sin(2π * month/12)
+  monthCos: number;       // Cyclical encoding: cos(2π * month/12)
+}
+
+/**
+ * Extracts temporal features from a timestamp or Date object
+ * @param timestamp - Unix timestamp in milliseconds, Date object, or ISO string
+ * @returns Object containing all temporal features
+ */
+export function extractTimestampFeatures(timestamp: number | Date | string): TimestampFeatures {
+  const date = typeof timestamp === 'number' ? new Date(timestamp) :
+               typeof timestamp === 'string' ? new Date(timestamp) :
+               timestamp;
+  
+  const hour = date.getHours();
+  const dayOfWeek = date.getDay();
+  const dayOfMonth = date.getDate();
+  const month = date.getMonth() + 1; // 0-indexed to 1-indexed
+  const quarter = Math.floor((date.getMonth() + 3) / 3);
+  
+  // Day/Night: Night is typically 18:00 to 06:00
+  const isNight = (hour >= 18 || hour < 6) ? 1 : 0;
+  
+  // Weekend: Saturday (6) or Sunday (0)
+  const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6) ? 1 : 0;
+  
+  // Cyclical encodings to preserve continuity (e.g., 23:00 is close to 0:00)
+  const hourSin = Math.sin(2 * Math.PI * hour / 24);
+  const hourCos = Math.cos(2 * Math.PI * hour / 24);
+  const dayOfWeekSin = Math.sin(2 * Math.PI * dayOfWeek / 7);
+  const dayOfWeekCos = Math.cos(2 * Math.PI * dayOfWeek / 7);
+  const monthSin = Math.sin(2 * Math.PI * month / 12);
+  const monthCos = Math.cos(2 * Math.PI * month / 12);
+  
+  return {
+    hour,
+    dayOfWeek,
+    dayOfMonth,
+    month,
+    quarter,
+    isNight,
+    isWeekend,
+    hourSin,
+    hourCos,
+    dayOfWeekSin,
+    dayOfWeekCos,
+    monthSin,
+    monthCos,
+  };
+}
+
+/**
+ * Converts timestamp features to a flat array suitable for XGBoost
+ * @param features - TimestampFeatures object
+ * @returns Array of feature values in consistent order
+ */
+export function timestampFeaturesToArray(features: TimestampFeatures): number[] {
+  return [
+    features.hour,
+    features.dayOfWeek,
+    features.dayOfMonth,
+    features.month,
+    features.quarter,
+    features.isNight,
+    features.isWeekend,
+    features.hourSin,
+    features.hourCos,
+    features.dayOfWeekSin,
+    features.dayOfWeekCos,
+    features.monthSin,
+    features.monthCos,
+  ];
+}
+
+/**
+ * Training data with timestamps and optional custom features
+ */
+export interface TimestampTrainingData {
+  timestamps: (number | Date | string)[];
+  customFeatures?: number[][]; // Optional additional features per sample
+  y: number[];
+}
+
+/**
+ * Combines timestamp features and custom features into a feature matrix
+ * @param data - Training data with timestamps and optional custom features
+ * @returns Feature matrix X suitable for XGBoost.fit()
+ */
+export function prepareTimestampFeatures(data: TimestampTrainingData): number[][] {
+  const X: number[][] = [];
+  
+  for (let i = 0; i < data.timestamps.length; i++) {
+    const timeFeatures = extractTimestampFeatures(data.timestamps[i]);
+    const timeArray = timestampFeaturesToArray(timeFeatures);
+    
+    // Combine timestamp features with custom features if provided
+    if (data.customFeatures && data.customFeatures[i]) {
+      X.push([...timeArray, ...data.customFeatures[i]]);
+    } else {
+      X.push(timeArray);
+    }
+  }
+  
+  return X;
 }
 
 // ===== Utilities =====
