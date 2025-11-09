@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { XGBoost, XGBoostParams, DatasetType, generateDataset, metrics, generateTimeSeries, windowedSupervised, recursiveForecast, SeriesType, TimestampTrainingData, prepareTimestampFeatures, extractTimestampFeatures, timestampFeaturesToArray } from './xgboost';
+import { XGBoost, XGBoostParams, DatasetType, generateDataset, metrics, generateTimeSeries, windowedSupervised, recursiveForecast, SeriesType, TimestampTrainingData, prepareTimestampFeatures, extractTimestampFeatures, timestampFeaturesToArray, generateTimeSeriesWithTimestamps } from './xgboost';
 
 export interface TrainResult {
   model: XGBoost;
@@ -70,6 +70,88 @@ export class XGBoostService {
     options?: { amplitude?: number; frequency?: number; phase?: number; noise?: number; trendSlope?: number; drift?: number }
   ) {
     return generateTimeSeries(type, total, options);
+  }
+
+  /**
+   * Generate time series with timestamps and optional custom features
+   */
+  generateSeriesWithTimestamps(
+    type: SeriesType,
+    total: number,
+    startDate: Date,
+    intervalMs: number = 3600000,
+    options?: {
+      amplitude?: number;
+      frequency?: number;
+      phase?: number;
+      noise?: number;
+      trendSlope?: number;
+      drift?: number;
+      generateCustomFeatures?: boolean;
+    }
+  ) {
+    return generateTimeSeriesWithTimestamps(type, total, startDate, intervalMs, options);
+  }
+
+  /**
+   * Train and predict time series using timestamps and automatic feature extraction
+   * @param params - XGBoost parameters
+   * @param timestamps - Array of timestamps for the entire series
+   * @param values - Array of values for the entire series
+   * @param trainLen - Number of points to use for training
+   * @param customFeatures - Optional custom features for each timestamp
+   * @returns Training result with predictions and metrics
+   */
+  trainAndForecastWithTimestamps(
+    params: XGBoostParams,
+    timestamps: Date[],
+    values: number[],
+    trainLen: number,
+    customFeatures?: number[][]
+  ) {
+    const model = new XGBoost({ ...params, task: 'regression' });
+    
+    // Prepare training data with timestamps
+    const trainTimestamps = timestamps.slice(0, trainLen);
+    const trainValues = values.slice(0, trainLen);
+    const trainCustomFeatures = customFeatures ? customFeatures.slice(0, trainLen) : undefined;
+    
+    const trainData: TimestampTrainingData = {
+      timestamps: trainTimestamps,
+      y: trainValues,
+      customFeatures: trainCustomFeatures
+    };
+    
+    model.fitWithTimestamps(trainData);
+    
+    // Prepare test data
+    const testTimestamps = timestamps.slice(trainLen);
+    const testCustomFeatures = customFeatures ? customFeatures.slice(trainLen) : undefined;
+    
+    // Make predictions
+    const preds = model.predictBatchWithTimestamps(testTimestamps, testCustomFeatures);
+    const truth = values.slice(trainLen);
+    
+    // Calculate regression metrics
+    const n = truth.length;
+    const eps = 1e-8;
+    const errors = truth.map((v, i) => preds[i] - v);
+    const absErrors = errors.map((e) => Math.abs(e));
+    const se = errors.map((e) => e * e);
+    const mae = n ? absErrors.reduce((a, b) => a + b, 0) / n : 0;
+    const mse = n ? se.reduce((a, b) => a + b, 0) / n : 0;
+    const rmse = Math.sqrt(mse);
+    const bias = n ? errors.reduce((a, b) => a + b, 0) / n : 0;
+    const maxAe = n ? Math.max(...absErrors) : 0;
+    const mape = n
+      ? (100 * truth.reduce((acc, v, i) => acc + Math.abs(errors[i]) / Math.max(eps, Math.abs(v)), 0)) / n
+      : 0;
+    const meanY = n ? truth.reduce((a, b) => a + b, 0) / n : 0;
+    const sst = n ? truth.reduce((acc, v) => acc + Math.pow(v - meanY, 2), 0) : 0;
+    const sse = n ? se.reduce((a, b) => a + b, 0) : 0;
+    const r2 = sst > eps ? 1 - sse / sst : 0;
+    
+    return { model, preds, truth, mae, rmse, mse, mape, r2, bias, maxAe };
   }
 
   /** Entraîne un modèle de régression sur une série glissante et prédit les steps suivants en mode récursif. */

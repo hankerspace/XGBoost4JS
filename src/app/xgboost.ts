@@ -466,6 +466,65 @@ export function generateTimeSeries(
   return data;
 }
 
+/**
+ * Generate time series with timestamps and optional custom features
+ * @param type - Type of time series pattern
+ * @param total - Number of data points
+ * @param startDate - Starting timestamp for the series
+ * @param intervalMs - Time interval between points in milliseconds (default: 1 hour)
+ * @param options - Series generation options
+ * @returns Object with timestamps, values, and optional custom features
+ */
+export function generateTimeSeriesWithTimestamps(
+  type: SeriesType,
+  total: number,
+  startDate: Date,
+  intervalMs: number = 3600000, // 1 hour by default
+  options?: {
+    amplitude?: number;
+    frequency?: number;
+    phase?: number;
+    noise?: number;
+    trendSlope?: number;
+    drift?: number;
+    generateCustomFeatures?: boolean; // Generate additional features based on the pattern
+  }
+): { timestamps: Date[]; values: number[]; customFeatures?: number[][] } {
+  const values = generateTimeSeries(type, total, options);
+  const timestamps: Date[] = [];
+  const customFeatures: number[][] = [];
+  
+  for (let i = 0; i < total; i++) {
+    const timestamp = new Date(startDate.getTime() + i * intervalMs);
+    timestamps.push(timestamp);
+    
+    // Optionally generate custom features that could influence the series
+    if (options?.generateCustomFeatures) {
+      // Example custom features: 
+      // - Temperature-like pattern (follows season)
+      // - Activity level (follows time of day)
+      const month = timestamp.getMonth() + 1;
+      const hour = timestamp.getHours();
+      
+      // Temperature: higher in summer (June-August), lower in winter
+      const tempBase = 15 + 10 * Math.sin(2 * Math.PI * (month - 3) / 12);
+      const tempNoise = (Math.random() - 0.5) * 5;
+      const temperature = tempBase + tempNoise;
+      
+      // Activity: higher during day (8-20), lower at night
+      const activityBase = hour >= 8 && hour < 20 ? 0.7 : 0.2;
+      const activityNoise = Math.random() * 0.2;
+      const activity = activityBase + activityNoise;
+      
+      customFeatures.push([temperature, activity]);
+    }
+  }
+  
+  return options?.generateCustomFeatures 
+    ? { timestamps, values, customFeatures }
+    : { timestamps, values };
+}
+
 export function windowedSupervised(series: number[], lag: number): { X: number[][]; y: number[] } {
   const X: number[][] = [];
   const y: number[] = [];

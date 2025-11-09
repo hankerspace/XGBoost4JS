@@ -35,6 +35,12 @@ export class App {
   totalLen = 400;
   trainLen = 300;
   lag = 20;
+  
+  // Timestamp-related properties
+  useTimestamps = true; // Toggle to use timestamp features
+  generateCustomFeatures = false; // Toggle to generate additional custom features
+  startDate = new Date('2024-01-01T00:00:00Z'); // Starting date for the series
+  intervalHours = 1; // Time interval between points in hours
 
   params: XGBoostParams = {
     learningRate: 0.1,
@@ -45,6 +51,8 @@ export class App {
   };
 
   series: number[] = [];
+  timestamps: Date[] = [];
+  customFeatures: number[][] = [];
   preds: number[] = [];
   truth: number[] = [];
   mae = 0;
@@ -163,15 +171,44 @@ export class App {
   }
 
   generateSeries() {
-    const totalNeeded = this.totalLen + this.lag; // pour pouvoir glisser la fenêtre
-    this.series = this.svc.generateSeries(this.seriesType, totalNeeded, {
-      amplitude: this.amplitude,
-      frequency: this.frequency,
-      noise: this.noise,
-      phase: this.phase,
-      trendSlope: this.trendSlope,
-      drift: this.drift,
-    });
+    if (this.useTimestamps) {
+      // Generate with timestamps
+      const totalNeeded = this.totalLen;
+      const intervalMs = this.intervalHours * 3600000; // Convert hours to milliseconds
+      const result = this.svc.generateSeriesWithTimestamps(
+        this.seriesType,
+        totalNeeded,
+        this.startDate,
+        intervalMs,
+        {
+          amplitude: this.amplitude,
+          frequency: this.frequency,
+          noise: this.noise,
+          phase: this.phase,
+          trendSlope: this.trendSlope,
+          drift: this.drift,
+          generateCustomFeatures: this.generateCustomFeatures,
+        }
+      );
+      
+      this.series = result.values;
+      this.timestamps = result.timestamps;
+      this.customFeatures = result.customFeatures || [];
+    } else {
+      // Generate without timestamps (legacy mode)
+      const totalNeeded = this.totalLen + this.lag;
+      this.series = this.svc.generateSeries(this.seriesType, totalNeeded, {
+        amplitude: this.amplitude,
+        frequency: this.frequency,
+        noise: this.noise,
+        phase: this.phase,
+        trendSlope: this.trendSlope,
+        drift: this.drift,
+      });
+      this.timestamps = [];
+      this.customFeatures = [];
+    }
+    
     // Réinitialiser sorties
     this.preds = [];
     this.truth = this.series.slice(this.trainLen, this.totalLen);
@@ -186,24 +223,47 @@ export class App {
     this.isLoading = true;
     await new Promise<void>((resolve) => setTimeout(resolve));
     try {
-      const forecastLen = this.totalLen - this.trainLen;
-      const { preds, truth, mae, rmse, mse, mape, r2, bias, maxAe } = this.svc.trainAndForecastTS(
-        this.params,
-        this.series,
-        this.lag,
-        this.trainLen,
-        forecastLen
-      );
-      this.preds = preds;
-      this.truth = truth;
-      this.mae = mae;
-      this.rmse = rmse;
-      this.mse = mse;
-      this.mape = mape;
-      this.r2 = r2;
-      this.bias = bias;
-      this.maxAe = maxAe;
-      this.nPreds = truth.length;
+      if (this.useTimestamps && this.timestamps.length > 0) {
+        // Use timestamp-based training
+        const customFeat = this.customFeatures.length > 0 ? this.customFeatures : undefined;
+        const { preds, truth, mae, rmse, mse, mape, r2, bias, maxAe } = this.svc.trainAndForecastWithTimestamps(
+          this.params,
+          this.timestamps,
+          this.series,
+          this.trainLen,
+          customFeat
+        );
+        this.preds = preds;
+        this.truth = truth;
+        this.mae = mae;
+        this.rmse = rmse;
+        this.mse = mse;
+        this.mape = mape;
+        this.r2 = r2;
+        this.bias = bias;
+        this.maxAe = maxAe;
+        this.nPreds = truth.length;
+      } else {
+        // Use legacy lag-based training
+        const forecastLen = this.totalLen - this.trainLen;
+        const { preds, truth, mae, rmse, mse, mape, r2, bias, maxAe } = this.svc.trainAndForecastTS(
+          this.params,
+          this.series,
+          this.lag,
+          this.trainLen,
+          forecastLen
+        );
+        this.preds = preds;
+        this.truth = truth;
+        this.mae = mae;
+        this.rmse = rmse;
+        this.mse = mse;
+        this.mape = mape;
+        this.r2 = r2;
+        this.bias = bias;
+        this.maxAe = maxAe;
+        this.nPreds = truth.length;
+      }
       this.updatePredChart();
     } finally {
       this.isLoading = false;
