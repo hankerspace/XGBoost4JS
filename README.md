@@ -1,5 +1,55 @@
 # XGBoost4JS
 
+XGBoost4JS is an implementation of the XGBoost (Extreme Gradient Boosting) algorithm in TypeScript/Angular with automatic timestamp-based feature engineering.
+
+## Key Features
+
+- 🚀 **XGBoost Algorithm**: Full gradient boosting decision tree implementation
+- ⏰ **Automatic Timestamp Features**: Automatically extracts 8+ time-based features from timestamps
+- 🎯 **Custom Features**: Support for user-defined features alongside automatic features
+- 📊 **Interactive Demo**: Energy consumption prediction demo included
+- ✅ **Type-Safe**: Written in TypeScript with comprehensive interfaces
+- 🧪 **Well-Tested**: 20+ unit tests covering all functionality
+
+## Quick Start
+
+```typescript
+import { XGBoostService } from './services/xgboost.service';
+
+// Prepare training data
+const trainingData = [
+  {
+    timestamp: new Date(2024, 0, 15, 8, 0, 0),
+    features: { temperature: 20 },
+    target: 75
+  },
+  // ... more data
+];
+
+// Train and predict
+xgboostService.train(trainingData, { numTrees: 20 });
+const prediction = xgboostService.predict({
+  timestamp: new Date(2024, 0, 15, 10, 0, 0),
+  features: { temperature: 22 }
+});
+```
+
+See [USAGE.md](./USAGE.md) for detailed documentation and examples.
+
+## Automatic Timestamp Features
+
+The algorithm automatically extracts these features from any timestamp:
+- Hour (0-23)
+- Day of week (0-6)
+- Day of month (1-31)
+- Month (0-11)
+- Weekend indicator (0/1)
+- Daytime indicator (0/1)
+- Quarter of day (0-3)
+- Week of year (1-53)
+
+## Project Structure
+
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.8.
 
 ## Development server
