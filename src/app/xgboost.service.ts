@@ -1,10 +1,17 @@
 import { Injectable } from '@angular/core';
-import { XGBoost, XGBoostParams, DatasetType, generateDataset, metrics, generateTimeSeries, windowedSupervised, recursiveForecast, SeriesType } from './xgboost';
+import { XGBoost, XGBoostParams, DatasetType, generateDataset, metrics, generateTimeSeries, windowedSupervised, recursiveForecast, SeriesType, TimestampTrainingData, prepareTimestampFeatures, extractTimestampFeatures, timestampFeaturesToArray } from './xgboost';
 
 export interface TrainResult {
   model: XGBoost;
   predictions: number[];
   metrics: ReturnType<typeof metrics>;
+  importance: number[];
+}
+
+export interface TimestampTrainResult {
+  model: XGBoost;
+  predictions: number[];
+  metrics?: ReturnType<typeof metrics>;
   importance: number[];
 }
 
@@ -22,6 +29,39 @@ export class XGBoostService {
     const importance = model.getFeatureImportance();
     return { model, predictions, metrics: m, importance };
   }
+
+  /**
+   * Train and predict using timestamp-based features
+   * @param params - XGBoost parameters
+   * @param trainData - Training data with timestamps and target values
+   * @param testData - Test data with timestamps and target values
+   * @returns Training result with model, predictions, and metrics
+   */
+  trainAndPredictWithTimestamps(
+    params: XGBoostParams,
+    trainData: TimestampTrainingData,
+    testData: TimestampTrainingData
+  ): TimestampTrainResult {
+    const model = new XGBoost(params);
+    model.fitWithTimestamps(trainData);
+    const predictions = model.predictBatchWithTimestamps(testData.timestamps, testData.customFeatures);
+    const importance = model.getFeatureImportance();
+    
+    // Calculate metrics if task is binary classification
+    if (params.task === 'binary') {
+      const m = metrics(predictions, testData.y);
+      return { model, predictions, metrics: m, importance };
+    }
+    
+    return { model, predictions, importance };
+  }
+
+  /**
+   * Expose timestamp feature extraction utilities
+   */
+  extractTimestampFeatures = extractTimestampFeatures;
+  timestampFeaturesToArray = timestampFeaturesToArray;
+  prepareTimestampFeatures = prepareTimestampFeatures;
 
   // ====== API Séries temporelles ======
   generateSeries(
