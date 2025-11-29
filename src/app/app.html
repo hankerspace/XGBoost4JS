@@ -1,74 +1,15 @@
-<div class="xgb-container">
-  <h1 class="xgb-title">XGBoost Multivariate Time Series</h1>
-  <p class="xgb-sub">Predict one feature using history and concurrent values of other features.</p>
+<div class="min-h-screen flex flex-col bg-background">
+  <header class="border-b bg-card">
+    <div class="container mx-auto px-4 h-14 flex items-center gap-6">
+      <div class="font-semibold text-lg">XGBoost4JS</div>
+      <nav class="flex gap-4 text-sm font-medium">
+        <a routerLink="/" class="hover:text-primary transition-colors text-muted-foreground hover:text-foreground">Generator</a>
+        <a routerLink="/file-prediction" class="hover:text-primary transition-colors text-muted-foreground hover:text-foreground">From File</a>
+      </nav>
+    </div>
+  </header>
 
-  <section class="xgb-controls">
-    <div class="xgb-grid">
-      <label>Data Length
-        <input type="number" [(ngModel)]="dataLength" min="50" step="50">
-      </label>
-      <label>Target Feature Index (0-2)
-        <input type="number" [(ngModel)]="targetIndex" min="0" max="2">
-      </label>
-      <label>Lag (History Steps)
-        <input type="number" [(ngModel)]="lag" min="1" max="20">
-      </label>
-    </div>
-    <div class="xgb-buttons">
-      <button (click)="generate()">Generate New Data</button>
-    </div>
-  </section>
-
-  <section class="xgb-viz" style="margin-top: 1rem;">
-    <div class="xgb-card" style="height: 400px;">
-      <canvas #mainChart></canvas>
-    </div>
-  </section>
-
-  <section class="xgb-controls" style="margin-top: 1rem;">
-    <h3>Model Parameters</h3>
-    <div class="xgb-grid">
-      <label>Learning Rate
-        <input type="number" [(ngModel)]="xgbParams.learningRate" step="0.01">
-      </label>
-      <label>Max Depth
-        <input type="number" [(ngModel)]="xgbParams.maxDepth" min="1" max="10">
-      </label>
-      <label>Rounds
-        <input type="number" [(ngModel)]="xgbParams.numRounds" step="10">
-      </label>
-      <label>Reg Lambda
-        <input type="number" [(ngModel)]="xgbParams.regLambda" step="0.1">
-      </label>
-    </div>
-    <div class="xgb-buttons">
-      <button class="primary" (click)="train()" [disabled]="isLoading">
-        {{ isLoading ? 'Training...' : 'Train & Predict' }}
-      </button>
-    </div>
-  </section>
-
-  <section class="xgb-results" *ngIf="metrics">
-    <div class="xgb-card">
-      <h3>Metrics (Test Set)</h3>
-      <ul class="xgb-metrics">
-        <li>RMSE: {{ metrics.rmse | number:'1.4-4' }}</li>
-        <li>MAE: {{ metrics.mae | number:'1.4-4' }}</li>
-        <li>R²: {{ metrics.r2 | number:'1.4-4' }}</li>
-        <li>Bias: {{ metrics.bias | number:'1.4-4' }}</li>
-      </ul>
-    </div>
-
-    <div class="xgb-card" *ngIf="importance.length">
-      <h3>Feature Importance (Gain)</h3>
-      <div class="xgb-bars">
-        <!-- Simple listing -->
-        <div *ngFor="let gain of importance; let i = index" class="xgb-bar">
-           <span class="label">Feature {{i}}</span>
-           <span class="value">{{ gain | number:'1.2-2' }}</span>
-        </div>
-      </div>
-      <small>Note: Features include Lags (e.g. F0_lag1, F1_lag1...) and Concurrent Others.</small>
-    </div>
-  </section>
+  <main class="flex-1">
+    <router-outlet></router-outlet>
+  </main>
 </div>

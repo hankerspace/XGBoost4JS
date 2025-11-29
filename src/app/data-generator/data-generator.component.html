@@ -1,0 +1,133 @@
+<div class="container mx-auto py-10 px-4 space-y-8 max-w-6xl">
+  <div class="space-y-2">
+    <h1 class="text-3xl font-bold tracking-tight">XGBoost Multivariate Time Series</h1>
+    <p class="text-muted-foreground">Predict one feature using history and concurrent values of other features.</p>
+  </div>
+
+  <section class="space-y-4">
+    <div class="rounded-xl border bg-card text-card-foreground shadow p-6">
+      <div class="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+        <div class="space-y-2">
+          <label class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Data Length</label>
+          <input class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                 type="number" [(ngModel)]="dataLength" min="50" step="50">
+        </div>
+        <div class="space-y-2">
+          <label class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Target Feature Index (0-2)</label>
+          <input class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                 type="number" [(ngModel)]="targetIndex" min="0" max="2">
+        </div>
+        <div class="space-y-2">
+          <label class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Lag (History Steps)</label>
+          <input class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                 type="number" [(ngModel)]="lag" min="1" max="20">
+        </div>
+        <div class="space-y-2">
+          <label class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Generation Mode</label>
+          <div class="relative">
+            <select class="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1"
+                    [(ngModel)]="generationMode" (change)="generate()">
+              <option *ngFor="let mode of generationModes" [value]="mode.value">{{ mode.label }}</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="mt-6 flex justify-end">
+        <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
+                (click)="generate()">Generate New Data</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="rounded-xl border bg-card text-card-foreground shadow">
+      <div class="p-6 pt-6" style="height: 400px;">
+        <canvas #mainChart class="w-full h-full"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <section class="space-y-4">
+    <div class="rounded-xl border bg-card text-card-foreground shadow p-6">
+      <h3 class="font-semibold leading-none tracking-tight mb-4">Model Parameters</h3>
+      <div class="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+        <div class="space-y-2">
+          <label class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Learning Rate</label>
+          <input class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                 type="number" [(ngModel)]="xgbParams.learningRate" step="0.01">
+        </div>
+        <div class="space-y-2">
+          <label class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Max Depth</label>
+          <input class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                 type="number" [(ngModel)]="xgbParams.maxDepth" min="1" max="10">
+        </div>
+        <div class="space-y-2">
+          <label class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Rounds</label>
+          <input class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                 type="number" [(ngModel)]="xgbParams.numRounds" step="10">
+        </div>
+        <div class="space-y-2">
+          <label class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Reg Lambda</label>
+          <input class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                 type="number" [(ngModel)]="xgbParams.regLambda" step="0.1">
+        </div>
+      </div>
+      <div class="mt-6 flex justify-end">
+        <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2"
+                (click)="train()" [disabled]="isLoading">
+          {{ isLoading ? 'Training...' : 'Train & Predict' }}
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid gap-6 md:grid-cols-2" *ngIf="metrics">
+    <app-metrics-display [metrics]="metrics"></app-metrics-display>
+
+    <div class="rounded-xl border bg-card text-card-foreground shadow p-6" *ngIf="namedImportance.length">
+      <h3 class="font-semibold leading-none tracking-tight mb-4">Feature Importance (Gain)</h3>
+      <div class="space-y-3">
+        <div *ngFor="let item of namedImportance" class="space-y-1">
+           <div class="flex justify-between text-xs">
+             <span class="font-medium">{{ item.name }}</span>
+             <span class="text-muted-foreground">{{ item.value | number:'1.2-2' }}</span>
+           </div>
+           <div class="h-2 w-full overflow-hidden rounded-full bg-secondary">
+             <div class="h-full bg-primary flex-1" [style.width.%]="(item.value / namedImportance[0].value) * 100"></div>
+           </div>
+        </div>
+      </div>
+      <p class="text-xs text-muted-foreground mt-4">Features: Lags (e.g. F0_Lag1 = F0 at t-1) & Concurrent (e.g. F1_Curr).</p>
+    </div>
+
+    <div class="rounded-xl border bg-card text-card-foreground shadow col-span-full" *ngIf="testDataRows.length">
+      <div class="p-6">
+        <h3 class="font-semibold leading-none tracking-tight mb-4">Test Data Results</h3>
+        <div class="relative w-full overflow-auto">
+          <table class="w-full caption-bottom text-sm">
+            <thead class="[&_tr]:border-b">
+              <tr class="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                <th class="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Timestamp</th>
+                <th class="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Target (Real)</th>
+                <th class="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Prediction</th>
+                <th class="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Diff</th>
+                <th class="h-10 px-2 text-left align-middle font-medium text-muted-foreground" *ngFor="let name of rawFeatureNames">{{ name }}</th>
+              </tr>
+            </thead>
+            <tbody class="[&_tr:last-child]:border-0">
+              <tr class="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted" *ngFor="let row of testDataRows">
+                <td class="p-2 align-middle">{{ row.timestamp }}</td>
+                <td class="p-2 align-middle">{{ row.target | number:'1.4-4' }}</td>
+                <td class="p-2 align-middle">{{ row.prediction | number:'1.4-4' }}</td>
+                <td class="p-2 align-middle" [class.text-red-500]="(row.target - row.prediction) < 0">
+                  {{ (row.target - row.prediction) | number:'1.4-4' }}
+                </td>
+                <td class="p-2 align-middle" *ngFor="let val of row.features">{{ val | number:'1.2-2' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>

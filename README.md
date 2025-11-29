@@ -1,59 +1,122 @@
 # XGBoost4JS
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.8.
+A pure TypeScript implementation of the **XGBoost** algorithm (eXtreme Gradient Boosting). This library allows you to train gradient boosting models and perform inference directly in the browser or in a Node.js environment, without any native dependencies.
 
-## Development server
+## Features
 
-To start a local development server, run:
+- **Zero external dependencies**: Written entirely in TypeScript.
+- **Lightweight**: Designed to be executed client-side.
+- **Supports**:
+  - Regression (`reg:squarederror`)
+  - Binary classification (`binary:logistic`)
+- **Advanced features**:
+  - Feature Importance (Gain)
+  - Time series handling (utilities included)
 
-```bash
-ng serve
+## Installation
+
+Currently, the library is not published on npm. You can integrate `XGBoost4JS` into your project by simply copying the file `src/app/xgboost.ts`.
+
+1. Copy `src/app/xgboost.ts` into your project (for example, in a `src/utils/` folder).
+2. Import `XGBoost` where you need it.
+
+## Usage
+
+### 1. Import
+
+```typescript
+import { XGBoost, XGBoostParams } from './xgboost';
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+### 2. Data Preparation
 
-## Code scaffolding
+The data must be formatted as follows:
+- **X**: An array of number arrays (`number[][]`), where each sub-array represents a sample row (features).
+- **y**: An array of numbers (`number[]`) representing the labels or target values.
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
+```typescript
+// Simple data example (Approximate logical XOR for demo)
+const X = [
+  [0, 0],
+  [0, 1],
+  [1, 0],
+  [1, 1]
+];
+const y = [0, 1, 1, 0];
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+### 3. Configuration and Training
 
-```bash
-ng generate --help
+```typescript
+const params: XGBoostParams = {
+  n_estimators: 10,       // Number of trees
+  learning_rate: 0.3,     // Learning rate (eta)
+  max_depth: 3,           // Maximum depth of trees
+  min_child_weight: 1,    // Minimum child weight
+  gamma: 0,               // Minimum loss reduction required to make a further partition
+  lambda: 1,              // L2 regularization
+  objective: 'binary:logistic', // 'reg:squarederror' for regression
+  seed: 42                // Seed for reproducibility
+};
+
+const model = new XGBoost(params);
+model.fit(X, y);
 ```
 
-## Building
+### 4. Prediction
 
-To build the project run:
-
-```bash
-ng build
+```typescript
+const predictions = model.predict(X);
+console.log(predictions); 
+// Output: [0.05, 0.95, 0.95, 0.05] (approximate values)
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+### 5. Feature Importance
 
-## Running unit tests
+You can retrieve the importance of each feature (based on gain) after training:
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
+```typescript
+const importance = model.getFeatureImportance();
+// Returns a Map where the key is the feature index and the value is its importance
+importance.forEach((gain, featureIndex) => {
+  console.log(`Feature ${featureIndex}: ${gain}`);
+});
 ```
 
-## Running end-to-end tests
+## API
 
-For end-to-end (e2e) testing, run:
+### `XGBoost` Class
 
-```bash
-ng e2e
+#### Constructor
+`new XGBoost(params: XGBoostParams)`
+
+#### Methods
+- `fit(X: number[][], y: number[]): void`: Trains the model on the provided data.
+- `predict(X: number[][]): number[]`: Predicts values for the new data.
+- `getFeatureImportance(): Map<string, number>`: Returns the feature importance.
+
+### Time Series Utilities
+
+The library also includes functions to facilitate the preparation of time series data (in `xgboost.ts`):
+
+- `prepareMultivariateDataset`: Transforms a raw time series into a supervised dataset (X, y) with lag handling.
+- `generateMultivariateSeries`: Generates synthetic data for testing.
+
+## Example with Angular Service
+
+The project includes an integration example in `src/app/xgboost.service.ts` which shows how to encapsulate the logic for time series predictions.
+
+```typescript
+// Extract from xgboost.service.ts
+trainAndEvaluate(params, data, targetIndex, lag, trainRatio) {
+    const { X, y } = prepareMultivariateDataset(data, targetIndex, lag, true);
+    // ... split train/test ...
+    const model = new XGBoost({ ...params, objective: 'reg:squarederror' });
+    model.fit(X_train, y_train);
+    return model.predict(X_test);
+}
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+## License
 
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+MIT

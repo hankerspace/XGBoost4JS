@@ -331,6 +331,37 @@ export function prepareMultivariateDataset(
   return { X, y };
 }
 
+/**
+ * Helper to generate feature names corresponding to prepareMultivariateDataset
+ */
+export function getMultivariateFeatureNames(
+  numFeatures: number,
+  targetFeatureIndex: number,
+  lags: number,
+  featurePrefix: string = 'F',
+  useConcurrentOthers: boolean = true
+): string[] {
+  const names: string[] = [];
+
+  // 1. History (Lags)
+  for (let k = 1; k <= lags; k++) {
+    for (let f = 0; f < numFeatures; f++) {
+      names.push(`${featurePrefix}${f}_Lag${k}`);
+    }
+  }
+
+  // 2. Concurrent Others
+  if (useConcurrentOthers) {
+    for (let f = 0; f < numFeatures; f++) {
+      if (f !== targetFeatureIndex) {
+        names.push(`${featurePrefix}${f}_Curr`);
+      }
+    }
+  }
+
+  return names;
+}
+
 // --- Metrics ---
 export function calcMetrics(pred: number[], actual: number[]) {
   const n = pred.length;

@@ -1,7 +1,8 @@
 import { Injectable } from '@angular/core';
 import {
   XGBoost, XGBoostParams,
-  generateMultivariateSeries, prepareMultivariateDataset, calcMetrics
+  generateMultivariateSeries, prepareMultivariateDataset, calcMetrics,
+  getMultivariateFeatureNames
 } from './xgboost';
 
 @Injectable({ providedIn: 'root' })
@@ -56,19 +57,23 @@ export class XGBoostService {
     // 5. Metrics
     const metrics = calcMetrics(preds, y_test);
 
-    // 6. Feature Importance
+    // 6. Feature Importance & Names
     const importance = model.getFeatureImportance();
+    const numFeatures = data[0].length;
+    const featureNames = getMultivariateFeatureNames(numFeatures, targetIndex, lag, 'F', true);
 
     return {
       model,
       metrics,
       importance,
+      featureNames,
       testResults: {
         actual: y_test,
         predicted: preds
       },
       trainSize: X_train.length,
-      testSize: X_test.length
+      testSize: X_test.length,
+      splitIdx // Useful to align timestamps
     };
   }
 }
