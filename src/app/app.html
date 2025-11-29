@@ -1,141 +1,74 @@
-
-<!-- --- Démo XGBoost4JS --- -->
 <div class="xgb-container">
-  <h1 class="xgb-title">XGBoost4JS — Démo interactive</h1>
-  <p class="xgb-sub">Générez des données, entraînez un modèle et visualisez les prédictions.</p>
+  <h1 class="xgb-title">XGBoost Multivariate Time Series</h1>
+  <p class="xgb-sub">Predict one feature using history and concurrent values of other features.</p>
 
   <section class="xgb-controls">
     <div class="xgb-grid">
-      <label>Type de dataset
-        <select [(ngModel)]="datasetType">
-          <option value="binary">binaire (x1+x2&gt;10)</option>
-          <option value="nonlinear">non‑linéaire (cercle)</option>
-          <option value="noisy">bruité (10% bruit)</option>
-        </select>
+      <label>Data Length
+        <input type="number" [(ngModel)]="dataLength" min="50" step="50">
       </label>
-      <label>Taille apprentissage
-        <input type="number" [(ngModel)]="trainSize" min="50" step="50" />
+      <label>Target Feature Index (0-2)
+        <input type="number" [(ngModel)]="targetIndex" min="0" max="2">
       </label>
-      <label>Taille test
-        <input type="number" [(ngModel)]="testSize" min="50" step="50" />
-      </label>
-      <label>Learning rate
-        <input type="number" [(ngModel)]="params.learningRate" min="0.01" max="1" step="0.01" />
-      </label>
-      <label>Max depth
-        <input type="number" [(ngModel)]="params.maxDepth" min="1" max="8" />
-      </label>
-      <label>Min child weight
-        <input type="number" [(ngModel)]="params.minChildWeight" min="1" max="10" />
-      </label>
-      <label>Rounds
-        <input type="number" [(ngModel)]="params.numRounds" min="10" step="10" />
+      <label>Lag (History Steps)
+        <input type="number" [(ngModel)]="lag" min="1" max="20">
       </label>
     </div>
     <div class="xgb-buttons">
-      <button (click)="generate()">Générer</button>
-      <button class="primary" (click)="trainAndPredict()">Entraîner + Prédire</button>
-      <button (click)="reset()">Réinitialiser</button>
+      <button (click)="generate()">Generate New Data</button>
     </div>
   </section>
 
-  <section class="xgb-viz" *ngIf="trainData as td">
-    <div class="xgb-card">
-      <h3>Données d'entraînement</h3>
-      <svg [attr.width]="w" [attr.height]="h">
-        <rect [attr.width]="w" [attr.height]="h" fill="#fafafa" stroke="#ddd" />
-        @let sc = getTrainScatter();
-        <g>
-          @for (pt of sc.points; track $index) {
-            <circle [attr.cx]="scaleX(pt.x, sc.domain.x)" [attr.cy]="scaleY(pt.y, sc.domain.y)" [attr.r]="3" [attr.fill]="pt.c ? '#e64' : '#26c'" />
-          }
-        </g>
-      </svg>
-      <small>Bleu = classe 0, Orange = classe 1</small>
-      <details>
-        <summary>Aperçu (10 premières lignes)</summary>
-        <table class="xgb-table">
-          <thead><tr><th>#</th><th>x1</th><th>x2</th><th>y</th></tr></thead>
-          <tbody>
-            @for (row of td.X.slice(0,10); track $index) {
-              <tr>
-                <td>{{$index}}</td>
-                <td>{{row[0] | number:'1.2-2'}}</td>
-                <td>{{row[1] | number:'1.2-2'}}</td>
-                <td>{{td.y[$index]}}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </details>
-    </div>
-
-    <div class="xgb-card" *ngIf="testData as te">
-      <h3>Prédictions (jeu de test)</h3>
-      <svg [attr.width]="w" [attr.height]="h">
-        <rect [attr.width]="w" [attr.height]="h" fill="#fafafa" stroke="#ddd" />
-        @let sc2 = getTestScatter();
-        <g>
-          @for (pt of sc2.points; track $index) {
-            <rect [attr.x]="scaleX(pt.x, sc2.domain.x)-3" [attr.y]="scaleY(pt.y, sc2.domain.y)-3" width="6" height="6" [attr.fill]="pt.c ? '#e64' : '#26c'" [attr.opacity]="pt.c===pt.a ? 1 : 0.6" />
-          }
-        </g>
-      </svg>
-      <small>Couleur = prédiction; opacité réduite si erreur.</small>
-      <details>
-        <summary>Aperçu (10 premières prédictions)</summary>
-        <table class="xgb-table">
-          <thead><tr><th>#</th><th>x1</th><th>x2</th><th>y vrai</th><th>proba</th><th>y préd</th><th>ok?</th></tr></thead>
-          <tbody>
-            @for (row of te.X.slice(0,10); track $index) {
-              <tr>
-                <td>{{$index}}</td>
-                <td>{{row[0] | number:'1.2-2'}}</td>
-                <td>{{row[1] | number:'1.2-2'}}</td>
-                <td>{{te.y[$index]}}</td>
-                <td>{{predictions[$index] || 0 | number:'1.3-3'}}</td>
-                <td>{{binaryPreds[$index] || 0}}</td>
-                <td>{{(binaryPreds[$index]||0) === te.y[$index] ? '✓' : '✗'}}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </details>
+  <section class="xgb-viz" style="margin-top: 1rem;">
+    <div class="xgb-card" style="height: 400px;">
+      <canvas #mainChart></canvas>
     </div>
   </section>
 
-  <section class="xgb-results" *ngIf="metrics as m">
+  <section class="xgb-controls" style="margin-top: 1rem;">
+    <h3>Model Parameters</h3>
+    <div class="xgb-grid">
+      <label>Learning Rate
+        <input type="number" [(ngModel)]="xgbParams.learningRate" step="0.01">
+      </label>
+      <label>Max Depth
+        <input type="number" [(ngModel)]="xgbParams.maxDepth" min="1" max="10">
+      </label>
+      <label>Rounds
+        <input type="number" [(ngModel)]="xgbParams.numRounds" step="10">
+      </label>
+      <label>Reg Lambda
+        <input type="number" [(ngModel)]="xgbParams.regLambda" step="0.1">
+      </label>
+    </div>
+    <div class="xgb-buttons">
+      <button class="primary" (click)="train()" [disabled]="isLoading">
+        {{ isLoading ? 'Training...' : 'Train & Predict' }}
+      </button>
+    </div>
+  </section>
+
+  <section class="xgb-results" *ngIf="metrics">
     <div class="xgb-card">
-      <h3>Métriques</h3>
+      <h3>Metrics (Test Set)</h3>
       <ul class="xgb-metrics">
-        <li>Accuracy: {{m.accuracy | number:'1.3-3'}}</li>
-        <li>Precision: {{m.precision | number:'1.3-3'}}</li>
-        <li>Recall: {{m.recall | number:'1.3-3'}}</li>
-        <li>F1: {{m.f1 | number:'1.3-3'}}</li>
+        <li>RMSE: {{ metrics.rmse | number:'1.4-4' }}</li>
+        <li>MAE: {{ metrics.mae | number:'1.4-4' }}</li>
+        <li>R²: {{ metrics.r2 | number:'1.4-4' }}</li>
+        <li>Bias: {{ metrics.bias | number:'1.4-4' }}</li>
       </ul>
     </div>
-    <div class="xgb-card">
-      <h3>Matrice de confusion</h3>
-      <table class="xgb-cm">
-        <thead><tr><th></th><th>Préd 0</th><th>Préd 1</th></tr></thead>
-        <tbody>
-          <tr><th>Vrai 0</th><td>{{m.cm.tn}}</td><td>{{m.cm.fp}}</td></tr>
-          <tr><th>Vrai 1</th><td>{{m.cm.fn}}</td><td>{{m.cm.tp}}</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="xgb-card" *ngIf="featureImportance?.length">
-      <h3>Importance des variables</h3>
+
+    <div class="xgb-card" *ngIf="importance.length">
+      <h3>Feature Importance (Gain)</h3>
       <div class="xgb-bars">
-        @for (v of featureImportance; track $index) {
-          <div class="xgb-bar">
-            <div class="label">f{{$index}}</div>
-            <div class="value"><span [style.width.%]="(v / featureImportanceMax) * 100"></span> {{v}}</div>
-          </div>
-        }
+        <!-- Simple listing -->
+        <div *ngFor="let gain of importance; let i = index" class="xgb-bar">
+           <span class="label">Feature {{i}}</span>
+           <span class="value">{{ gain | number:'1.2-2' }}</span>
+        </div>
       </div>
+      <small>Note: Features include Lags (e.g. F0_lag1, F1_lag1...) and Concurrent Others.</small>
     </div>
   </section>
 </div>
-
-<router-outlet />
