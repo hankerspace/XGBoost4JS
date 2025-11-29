@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Chart, registerables } from 'chart.js';
 import { XGBoostService } from '../xgboost.service';
-import { XGBoostParams } from '../xgboost';
+import { XGBoostParams } from 'xgboost-js';
 import * as XLSX from 'xlsx';
 import { MetricsDisplayComponent } from '../components/metrics-display/metrics-display.component';
 

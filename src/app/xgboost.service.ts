@@ -3,7 +3,7 @@ import {
   XGBoost, XGBoostParams,
   generateMultivariateSeries, prepareMultivariateDataset, calcMetrics,
   getMultivariateFeatureNames
-} from './xgboost';
+} from 'xgboost-js';
 
 @Injectable({ providedIn: 'root' })
 export class XGBoostService {

@@ -13,7 +13,12 @@
     "experimentalDecorators": true,
     "importHelpers": true,
     "target": "ES2022",
-    "module": "preserve"
+    "module": "preserve",
+    "paths": {
+      "xgboost-js": [
+        "./dist/xgboost-js"
+      ]
+    }
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,
@@ -29,6 +34,12 @@
     },
     {
       "path": "./tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/xgboost-js/tsconfig.lib.json"
+    },
+    {
+      "path": "./projects/xgboost-js/tsconfig.spec.json"
     }
   ]
 }

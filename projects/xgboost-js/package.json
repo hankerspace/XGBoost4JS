@@ -1,0 +1,15 @@
+{
+  "name": "xgboost-js",
+  "version": "0.0.1",
+  "description": "XGBoost implementation in pure JavaScript/TypeScript",
+  "keywords": [
+    "xgboost",
+    "machine-learning",
+    "typescript",
+    "javascript"
+  ],
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "sideEffects": false
+}

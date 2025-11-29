@@ -89,6 +89,36 @@
           }
         }
       }
+    },
+    "xgboost-js": {
+      "projectType": "library",
+      "root": "projects/xgboost-js",
+      "sourceRoot": "projects/xgboost-js/src",
+      "prefix": "lib",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:ng-packagr",
+          "configurations": {
+            "production": {
+              "tsConfig": "projects/xgboost-js/tsconfig.lib.prod.json"
+            },
+            "development": {
+              "tsConfig": "projects/xgboost-js/tsconfig.lib.json"
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "test": {
+          "builder": "@angular/build:karma",
+          "options": {
+            "tsConfig": "projects/xgboost-js/tsconfig.spec.json",
+            "polyfills": [
+              "zone.js",
+              "zone.js/testing"
+            ]
+          }
+        }
+      }
     }
   },
   "cli": {
